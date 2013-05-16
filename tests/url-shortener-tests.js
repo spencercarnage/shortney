@@ -58,7 +58,10 @@ test('Options', function () {
     api: '/bitly/endpoint/',
     urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
     shortenerRE: /bit\.ly/, // Regex for URL shortening service.
-    onSuccess: null
+    onSuccess: null,
+    onError: null,
+    onBeforeSend: null,
+    onComplete: null
   }, 'Initial settings');
 
   this.$input.urlshortener('option', {'api': '/googly/endpoint/'});
@@ -73,7 +76,10 @@ test('Options', function () {
     api: '/googly/endpoint/',
     urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
     shortenerRE: /bit\.ly/, // Regex for URL shortening service.
-    onSuccess: null
+    onSuccess: null,
+    onError: null,
+    onBeforeSend: null,
+    onComplete: null
   }, 'Updated settings');
 });
 
@@ -157,29 +163,75 @@ test("Destroy plugin", function () {
   );
 });
 
-module("API", {
+module("AJAX", {
   setup: function () {
+    this.ajaxStub = sinon.stub(jQuery, 'ajax');
+    this.onSuccessStub = sinon.stub();
+    this.onErrorStub = sinon.stub();
+    this.onBeforeSendStub = sinon.stub();
+    this.onCompleteStub = sinon.stub();
+
     var options = {
-      api: '/bitly/endpoint/'
+      api: '/bitly/endpoint/',
+      onSuccess: this.onSuccessStub,
+      onError: this.onErrorStub,
+      onBeforeSend: this.onBeforeSendStub,
+      onComplete: this.onCompleteStub,
     };
 
     setup.apply(this, [options]);
   },
+
   teardown: function () {
     teardown.apply(this, arguments);
+    $.ajax.restore();
   }
 });
 
-test("API callback", function () {
-  expect(2);
-
-  var spy1 = this.stub(jQuery, 'post').callsArg(2);
-  var callback = this.stub();
-  this.$input.urlshortener('option', {'onSuccess': callback});
-  this.$input.urlshortener('option', {'api': '/bitly/'});
+test("should make an ajax call", function () {
+  expect(1);
 
   $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
 
-  ok($.post.calledOnce);
-  ok(callback.calledOnce);
+  ok($.ajax.calledOnce);
+});
+
+test("should call onBeforeSend on ajax call", function () {
+  expect(1);
+
+  this.ajaxStub.yieldsTo('beforeSend');
+
+  $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
+
+  ok(this.onBeforeSendStub.calledOnce);
+});
+
+test("should call onSuccess on ajax call", function () {
+  expect(1);
+
+  this.ajaxStub.yieldsTo('success');
+
+  $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
+
+  ok(this.onSuccessStub.calledOnce);
+});
+
+test("should call onError on ajax call", function () {
+  expect(1);
+
+  this.ajaxStub.yieldsTo('error');
+
+  $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
+
+  ok(this.onErrorStub.calledOnce);
+});
+
+test("should call onComplete on ajax call", function () {
+  expect(1);
+
+  this.ajaxStub.yieldsTo('complete');
+
+  $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
+
+  ok(this.onCompleteStub.calledOnce);
 });

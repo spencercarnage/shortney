@@ -10,7 +10,10 @@
       urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
       shortenerRE: /bit\.ly/, // Regex for URL shortening service.
       api: undefined, // AJAX endpoint for URL shortening service.
-      onSuccess: null
+      onSuccess: null,
+      onError: null,
+      onBeforeSend: null,
+      onComplete: null
     };
   }
 
@@ -118,9 +121,29 @@
       var scope = this;
       var instance = target.data(this.propertyName);
 
-      $.post(instance.options.api, {url: url}, function (data, textStatus, jqXHR) {
-        if (typeof instance.options.onSuccess === "function") {
-          instance.options.onSuccess.apply(scope, arguments);
+      $.ajax({
+        type: 'POST',
+        url: instance.options.api,
+        data: { url: url },
+        success: function (data, textStatus, jqXHR) {
+          if (typeof instance.options.onSuccess === "function") {
+            instance.options.onSuccess.apply(scope, arguments);
+          }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          if (typeof instance.options.onError === "function") {
+            instance.options.onError.apply(scope, arguments);
+          }
+        },
+        beforeSend: function (jqXHR, settings) {
+          if (typeof instance.options.onBeforeSend === "function") {
+            instance.options.onBeforeSend.apply(scope, arguments);
+          }
+        },
+        complete: function (jqXHR, textStatus) {
+          if (typeof instance.options.onComplete === "function") {
+            instance.options.onComplete.apply(scope, arguments);
+          }
         }
       });
     },
