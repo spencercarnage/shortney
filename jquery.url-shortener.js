@@ -10,6 +10,9 @@
       urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
       shortenerRE: /bit\.ly/, // Regex for URL shortening service.
       api: undefined, // AJAX endpoint for URL shortening service.
+      URLValidator: null, // Optionally plug in your own validation.
+      onInvalidURL: null,
+      onValidURL: null,
       onSuccess: null,
       onError: null,
       onBeforeSend: null,
@@ -18,19 +21,30 @@
   }
 
   $.extend(URLShortener.prototype, {
-    events: 'blur.url-shortener input.url-shortener propertychange.url-shortener',
+    events: 'blur.url-shortener',
 
     shortenerClass: 'url-shortener',
 
     propertyName: 'urlshortener',
 
-    _shortened: false, // Flag for determining whether or not URL was shortened.
+    /*
+     * Flag for determining if the URL is in the process of being in the
+     * process of being shortening via AJAX
+     */
+    _ajaxInProcess: false, 
 
-    _validURL: function validURL(url) {
-      if (!this._shortened && this._defaults.urlRE.test(url) && !this._defaults.shortenerRE.test(url)) {
-        return true;
+    _isShortened: false, // Flag for determining whether or not URL was shortened.
+
+    _validURL: function validURL(target) {
+      var $target = $(target);
+
+      var instance = $target.data(this.propertyName);
+      var url = $target.val();
+
+      if ($.isFunction(instance.options.URLValidator)) {
+        return !this._isShortened && instance.options.URLValidator.call(this, target);
       } else {
-        return false;
+        return !this._isShortened && this._defaults.urlRE.test(url) && !this._defaults.shortenerRE.test(url);
       }
     },
 
@@ -59,11 +73,22 @@
       var instance = {
         options: $.extend({}, this._defaults)
       };
+      var scope = this;
 
       target.addClass(this.shortenerClass)
         .data(this.propertyName, instance)
         .bind(this.events, function (event) {
-          
+          var url = target.val();
+
+          if (scope._validURL(this)) {
+            if ($.isFunction(instance.options.onValidURL)) {
+              instance.options.onValidURL.apply(target, arguments); 
+            }
+
+            scope.shortenURL(target, target.val()); 
+          } else if ($.isFunction(instance.options.onInvalidURL)) {
+            instance.options.onInvalidURL.apply(target, arguments); 
+          }
         });
       
       this._optionPlugin(target, options);
@@ -115,32 +140,48 @@
       }
     },
 
-    shortenURL: function shortenURL (target, url) {
+    shortenURL: function shortenURL (target) {
       target = $(target);
 
       var scope = this;
       var instance = target.data(this.propertyName);
 
+      /*
+       * If _ajaxInProcess set to true, then return because we already have an
+       * AJAX request that has been sent out.
+       */
+      if (this._ajaxInProcess) {
+        return;
+      }
+
       $.ajax({
         type: 'POST',
         url: instance.options.api,
-        data: { url: url },
+        data: { url: target.val() },
         success: function (data, textStatus, jqXHR) {
+          scope._isShortened = true; 
+
           if (typeof instance.options.onSuccess === "function") {
             instance.options.onSuccess.apply(scope, arguments);
           }
         },
         error: function (jqXHR, textStatus, errorThrown) {
+          scope._isShortened = false; 
+
           if (typeof instance.options.onError === "function") {
             instance.options.onError.apply(scope, arguments);
           }
         },
         beforeSend: function (jqXHR, settings) {
+          scope._ajaxInProcess = true;
+
           if (typeof instance.options.onBeforeSend === "function") {
             instance.options.onBeforeSend.apply(scope, arguments);
           }
         },
         complete: function (jqXHR, textStatus) {
+          scope._ajaxInProcess = false;
+
           if (typeof instance.options.onComplete === "function") {
             instance.options.onComplete.apply(scope, arguments);
           }
@@ -189,6 +230,13 @@
       target.removeClass(this.shortenerClass)
             .removeData(this.propertyName)
             .unbind('.url-shortener');
+
+      this._ajaxInProcess = false;
+      this._isShortened = false;
+
+      if ($.isFunction(instance.options.onValidURL)) {
+        instance.options.onValidURL.apply(target, arguments);
+      }
     }
   });
 

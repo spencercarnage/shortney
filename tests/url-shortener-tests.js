@@ -58,6 +58,9 @@ test('Options', function () {
     api: '/bitly/endpoint/',
     urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
     shortenerRE: /bit\.ly/, // Regex for URL shortening service.
+    URLValidator: null,
+    onInvalidURL: null,
+    onValidURL: null,
     onSuccess: null,
     onError: null,
     onBeforeSend: null,
@@ -76,6 +79,9 @@ test('Options', function () {
     api: '/googly/endpoint/',
     urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
     shortenerRE: /bit\.ly/, // Regex for URL shortening service.
+    URLValidator: null,
+    onInvalidURL: null,
+    onValidURL: null,
     onSuccess: null,
     onError: null,
     onBeforeSend: null,
@@ -94,20 +100,78 @@ test('Initialize plugin', function () {
   );
 });
 
-module('URL Shortener Tests');
+
+module('URL Validation', {
+  setup: function () {
+    var options = {
+      api: '/bitly/endpoint/'
+    };
+
+    setup.apply(this, [options]);
+  },
+  teardown: function () {
+    teardown.apply(this, arguments);
+  }
+});
+
 
 test('Is the URL valid?', function () {
   expect(9);
 
-  ok($.urlshortener._validURL('www.google.com'), 'Should be a valid URL');
-  ok($.urlshortener._validURL('http://www.google.com'), 'Should be a valid URL');
-  ok($.urlshortener._validURL('someurl.cc'), 'Should be a valid URL');
-  ok($.urlshortener._validURL('http://someurl.cc'), 'Should be a valid URL');
-  ok(!$.urlshortener._validURL('http://bit.ly/1234'), 'Bit.ly URLs should not be considered valid');
-  ok(!$.urlshortener._validURL('bit.ly/1234'), 'Bit.ly URLs should not be considered valid');
-  ok(!$.urlshortener._validURL('this is not a url'), 'Should not be a valid URL.');
-  ok(!$.urlshortener._validURL('asdfjlkjalskdfjalsd'), 'Should not be a valid URL.');
-  ok(!$.urlshortener._validURL('131123123123'), 'Should not be a valid URL.');
+  ok($.urlshortener._validURL(this.$input.val('www.google.com')), 'Should be a valid URL');
+  ok($.urlshortener._validURL(this.$input.val('http://www.google.com')), 'Should be a valid URL');
+  ok($.urlshortener._validURL(this.$input.val('someurl.cc')), 'Should be a valid URL');
+  ok($.urlshortener._validURL(this.$input.val('http://someurl.cc')), 'Should be a valid URL');
+  ok(!$.urlshortener._validURL(this.$input.val('http://bit.ly/1234')), 'Bit.ly URLs should not be considered valid');
+  ok(!$.urlshortener._validURL(this.$input.val('bit.ly/1234')), 'Bit.ly URLs should not be considered valid');
+  ok(!$.urlshortener._validURL(this.$input.val('this is not a url')), 'Should not be a valid URL.');
+  ok(!$.urlshortener._validURL(this.$input.val('asdfjlkjalskdfjalsd')), 'Should not be a valid URL.');
+  ok(!$.urlshortener._validURL(this.$input.val('131123123123')), 'Should not be a valid URL.');
+});
+
+test('Use a custom validator', function () {
+  expect(1);
+
+  function customURLValidator(target) {
+    var $target = $(target);
+
+    return $target.val() === 'custom url validator is go!';
+  }
+
+  this.$input.urlshortener('option', 'URLValidator', customURLValidator);
+  this.$input.val('custom url validator is go!'); 
+
+  ok(
+    $.urlshortener._validURL(this.$input[0]),
+    'Should validate with custom validator'
+  );
+});
+
+test('Use a jQuery validation', function () {
+  expect(1);
+
+  var $form = $('form');
+  var validator = $form.validate({
+    rules: {
+      url: true
+    },
+    submitHandler: function (form) {
+      return;
+    }
+  });
+
+  function jqValidation() {
+    return validator.element.apply(validator, arguments);
+  }
+
+  this.$input.urlshortener('option', 'URLValidator', jqValidation);
+
+  this.$input.val('http://www.mobileroadie.com');
+
+  ok(
+    $.urlshortener._validURL(this.$input[0]),
+    "Should validate using jQuery's validation plugin"
+  );
 });
 
 module('Accessing Methods', {
@@ -196,42 +260,93 @@ test("should make an ajax call", function () {
   ok($.ajax.calledOnce);
 });
 
-test("should call onBeforeSend on ajax call", function () {
+test("should make an ajax call on blur event", function () {
   expect(1);
+
+  this.$input.val('www.mobileroadie.com');
+  this.$input.trigger($.Event('blur'));
+
+  ok($.ajax.calledOnce);
+});
+
+test("should call onBeforeSend on ajax call", function () {
+  expect(2);
 
   this.ajaxStub.yieldsTo('beforeSend');
 
   $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
 
   ok(this.onBeforeSendStub.calledOnce);
+  ok($.urlshortener._ajaxInProcess);
 });
 
 test("should call onSuccess on ajax call", function () {
-  expect(1);
+  expect(2);
 
   this.ajaxStub.yieldsTo('success');
 
   $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
 
   ok(this.onSuccessStub.calledOnce);
+  ok($.urlshortener._isShortened);
 });
 
 test("should call onError on ajax call", function () {
-  expect(1);
+  expect(2);
 
   this.ajaxStub.yieldsTo('error');
 
   $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
 
   ok(this.onErrorStub.calledOnce);
+  ok(!$.urlshortener._isShortened);
 });
 
 test("should call onComplete on ajax call", function () {
-  expect(1);
+  expect(2);
 
   this.ajaxStub.yieldsTo('complete');
 
   $.urlshortener.shortenURL(this.$input[0], 'www.mobileroadie.com');
 
   ok(this.onCompleteStub.calledOnce);
+  ok(!$.urlshortener._ajaxInProcess);
 });
+
+module('Valid / Invalid URL Callback', {
+  setup: function () {
+    this.ajaxStub = sinon.stub(jQuery, 'ajax');
+    this.onInvalidURLStub = sinon.stub();
+    this.onValidURLStub = sinon.stub();
+
+    var options = {
+      api: '/bitly/endpoint/',
+      onInvalidURL: this.onInvalidURLStub,
+      onValidURL: this.onValidURLStub
+    };
+
+    setup.apply(this, [options]);
+  },
+  teardown: function () {
+    teardown.apply(this, arguments);
+    $.ajax.restore();
+  }
+});
+
+
+test('Should fire onValidURL callback for valid URL', function () {
+  expect(1);
+
+  this.$input.val('www.mobileroadie.com');
+  this.$input.trigger($.Event('blur'));
+  ok(this.onValidURLStub.calledOnce);
+});
+
+test('Should fire onInvalidURL callback for invalid URL', function () {
+  expect(1);
+
+  this.$input.val('Invalid url');
+  this.$input.trigger($.Event('blur'));
+  ok(this.onInvalidURLStub.calledOnce);
+});
+
