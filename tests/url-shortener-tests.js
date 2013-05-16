@@ -57,7 +57,15 @@ test('Options', function () {
   deepEqual(this.$input.urlshortener('option'), {
     api: '/bitly/endpoint/',
     urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
-    shortenerRE: /bit\.ly/, // Regex for URL shortening service.
+    shortenerREs: [
+      'bit.ly', 
+      'goo.gl', 
+      'tinyurl.com', 
+      'is.gd', 
+      'cl.ly', 
+      't.co',
+      'ow.ly'
+    ],
     URLValidator: null,
     onInvalidURL: null,
     onValidURL: null,
@@ -78,7 +86,15 @@ test('Options', function () {
   deepEqual(this.$input.urlshortener('option'), {
     api: '/googly/endpoint/',
     urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
-    shortenerRE: /bit\.ly/, // Regex for URL shortening service.
+    shortenerREs: [
+      'bit.ly', 
+      'goo.gl', 
+      'tinyurl.com', 
+      'is.gd', 
+      'cl.ly', 
+      't.co',
+      'ow.ly'
+    ],
     URLValidator: null,
     onInvalidURL: null,
     onValidURL: null,
@@ -116,17 +132,39 @@ module('URL Validation', {
 
 
 test('Is the URL valid?', function () {
-  expect(9);
+  expect(7);
 
   ok($.urlshortener._validURL(this.$input.val('www.google.com')), 'Should be a valid URL');
   ok($.urlshortener._validURL(this.$input.val('http://www.google.com')), 'Should be a valid URL');
   ok($.urlshortener._validURL(this.$input.val('someurl.cc')), 'Should be a valid URL');
   ok($.urlshortener._validURL(this.$input.val('http://someurl.cc')), 'Should be a valid URL');
-  ok(!$.urlshortener._validURL(this.$input.val('http://bit.ly/1234')), 'Bit.ly URLs should not be considered valid');
-  ok(!$.urlshortener._validURL(this.$input.val('bit.ly/1234')), 'Bit.ly URLs should not be considered valid');
+  //ok(!$.urlshortener._validURL(this.$input.val('http://bit.ly/1234')), 'Bit.ly URLs should not be considered valid');
+  //ok(!$.urlshortener._validURL(this.$input.val('bit.ly/1234')), 'Bit.ly URLs should not be considered valid');
   ok(!$.urlshortener._validURL(this.$input.val('this is not a url')), 'Should not be a valid URL.');
   ok(!$.urlshortener._validURL(this.$input.val('asdfjlkjalskdfjalsd')), 'Should not be a valid URL.');
   ok(!$.urlshortener._validURL(this.$input.val('131123123123')), 'Should not be a valid URL.');
+});
+
+test('Leave shortened URLs alone', function () {
+  var stub = sinon.stub($.urlshortener, '_validURL');
+  var shortenedREs = this.$input.urlshortener('option', 'shortenerREs');
+
+  function testShortenedURL($input, url) {
+    $input.val(url + '/test');
+    $input.trigger($.Event('blur'));
+    ok(!stub.calledOnce);
+  }
+
+  console.log($.urlshortener._validURL);
+  for (var i = 0, l = shortenedREs.length; i < l; i++) {
+    testShortenedURL(this.$input, shortenedREs[i]);
+  }
+
+  this.$input.val('http://www.testurl.com');
+  this.$input.trigger($.Event('blur'));
+  ok(stub.calledOnce);
+
+  $.urlshortener._validURL.restore();
 });
 
 test('Use a custom validator', function () {
@@ -147,7 +185,7 @@ test('Use a custom validator', function () {
   );
 });
 
-test('Use a jQuery validation', function () {
+test('Use jQuery validation', function () {
   expect(1);
 
   var $form = $('form');
@@ -289,6 +327,7 @@ test("should call onSuccess on ajax call", function () {
 
   ok(this.onSuccessStub.calledOnce);
   ok($.urlshortener._isShortened);
+
 });
 
 test("should call onError on ajax call", function () {
@@ -312,6 +351,7 @@ test("should call onComplete on ajax call", function () {
   ok(this.onCompleteStub.calledOnce);
   ok(!$.urlshortener._ajaxInProcess);
 });
+
 
 module('Valid / Invalid URL Callback', {
   setup: function () {

@@ -8,7 +8,15 @@
   function URLShortener() {
     this._defaults = {
       urlRE: /(https?:\/\/)?((\w+:{0,1}\w*@)?(\S+)\.[a-zA-Z]{2,})(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/,
-      shortenerRE: /bit\.ly/, // Regex for URL shortening service.
+      shortenerREs: [
+        'bit.ly', 
+        'goo.gl', 
+        'tinyurl.com', 
+        'is.gd', 
+        'cl.ly', 
+        't.co',
+        'ow.ly'
+      ],
       api: undefined, // AJAX endpoint for URL shortening service.
       URLValidator: null, // Optionally plug in your own validation.
       onInvalidURL: null,
@@ -35,6 +43,22 @@
 
     _isShortened: false, // Flag for determining whether or not URL was shortened.
 
+    _checkShortenerREs: function (target) {
+      var $target = $(target);
+      var url = $target.val();
+      var alreadyShortened = false;
+      var instance = $target.data(this.propertyName);
+
+      for (var i = 0, l = instance.options.shortenerREs.length; i < l; i++) {
+        if (url.search(instance.options.shortenerREs[i]) !== -1) {
+          alreadyShortened = true; 
+          break;
+        }
+      }
+
+      return alreadyShortened;
+    },
+
     _validURL: function validURL(target) {
       var $target = $(target);
 
@@ -44,7 +68,7 @@
       if ($.isFunction(instance.options.URLValidator)) {
         return !this._isShortened && instance.options.URLValidator.call(this, target);
       } else {
-        return !this._isShortened && this._defaults.urlRE.test(url) && !this._defaults.shortenerRE.test(url);
+        return !this._isShortened && this._defaults.urlRE.test(url);
       }
     },
 
@@ -64,9 +88,9 @@
      * @param options (object) the custom options for this
      */
     _attachPlugin: function (target, options) {
-      target = $(target);
+      var $target = $(target);
 
-      if (target.hasClass(this.shortenerClass)) {
+      if ($target.hasClass(this.shortenerClass)) {
         return;
       }
 
@@ -75,19 +99,27 @@
       };
       var scope = this;
 
-      target.addClass(this.shortenerClass)
+      $target.addClass(this.shortenerClass)
         .data(this.propertyName, instance)
         .bind(this.events, function (event) {
-          var url = target.val();
+          var url = $target.val();
+
+          scope._isShortened = false;
+
+          if (scope._checkShortenerREs(target)) {
+            return false;
+          }
 
           if (scope._validURL(this)) {
             if ($.isFunction(instance.options.onValidURL)) {
               instance.options.onValidURL.apply(target, arguments); 
             }
 
-            scope.shortenURL(target, target.val()); 
-          } else if ($.isFunction(instance.options.onInvalidURL)) {
-            instance.options.onInvalidURL.apply(target, arguments); 
+            scope.shortenURL(target, $target.val()); 
+          } else {
+            if ($.isFunction(instance.options.onInvalidURL)) {
+              instance.options.onInvalidURL.apply(target, arguments); 
+            }
           }
         });
       
